@@ -31,6 +31,16 @@ export function saveMultipleRecords(records: MonthlyRecords): void {
   localStorage.setItem(RECORDS_KEY, JSON.stringify(records));
 }
 
+export function deleteRecord(date: string): void {
+  const all = getRecords();
+  const d = new Date(date.replace(/\//g, '-'));
+  const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  if (all[key]) {
+    all[key] = all[key].filter(r => r.date !== date);
+    localStorage.setItem(RECORDS_KEY, JSON.stringify(all));
+  }
+}
+
 export function getTodayRecord(): DailyRecord | null {
   const d = new Date();
   const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;

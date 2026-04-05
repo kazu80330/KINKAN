@@ -1,27 +1,63 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface PomodoroProps {
   working: boolean;
+  autoStart: boolean;
   onPomodoroComplete?: () => void;
 }
 
-export function Pomodoro({ working, onPomodoroComplete }: PomodoroProps) {
+// Web Audio API でチーン音を生成
+function playChime(type: 'work' | 'break') {
+  try {
+    const ctx = new AudioContext();
+    const freqs = type === 'work' ? [880, 1100, 1320] : [660, 880];
+    freqs.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.18;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.25, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+      osc.start(t);
+      osc.stop(t + 0.55);
+    });
+  } catch {
+    // AudioContext が使えない環境は無視
+  }
+}
+
+export function Pomodoro({ working, autoStart, onPomodoroComplete }: PomodoroProps) {
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [mode, setMode] = useState<'work' | 'break'>('work');
   const [isActive, setIsActive] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  // Automatically start/stop Pomodoro with working state
+  // autoStart が有効なら出勤と同時にスタート、退勤でリセット
   useEffect(() => {
-    if (working) {
+    if (working && autoStart) {
       setIsActive(true);
-    } else {
+    } else if (!working) {
       setIsActive(false);
       setTimeLeft(25 * 60);
       setMode('work');
       setProgress(0);
     }
-  }, [working]);
+  }, [working, autoStart]);
+
+  const switchMode = useCallback((completedMode: 'work' | 'break') => {
+    playChime(completedMode);
+    if (completedMode === 'work') {
+      onPomodoroComplete?.();
+    }
+    const newMode = completedMode === 'work' ? 'break' : 'work';
+    setMode(newMode);
+    setTimeLeft(newMode === 'work' ? 25 * 60 : 5 * 60);
+    setProgress(0);
+  }, [onPomodoroComplete]);
 
   useEffect(() => {
     let interval: number;
@@ -35,17 +71,10 @@ export function Pomodoro({ working, onPomodoroComplete }: PomodoroProps) {
         });
       }, 1000);
     } else if (isActive && timeLeft === 0) {
-      // ワークセッション完了 → ポモドーロカウントアップ
-      if (mode === 'work') {
-        onPomodoroComplete?.();
-      }
-      const newMode = mode === 'work' ? 'break' : 'work';
-      setMode(newMode);
-      setTimeLeft(newMode === 'work' ? 25 * 60 : 5 * 60);
-      setProgress(0);
+      switchMode(mode);
     }
     return () => clearInterval(interval);
-  }, [isActive, timeLeft, mode, onPomodoroComplete]);
+  }, [isActive, timeLeft, mode, switchMode]);
 
   const formatTime = (time: number) => {
     const m = Math.floor(time / 60).toString().padStart(2, '0');
