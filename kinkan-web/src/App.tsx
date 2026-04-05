@@ -37,15 +37,16 @@ function App() {
 
   return (
     <div className="app-container">
-      <header className="glass-header" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <header className="glass-header">
         <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
           <div className="logo">KINKAN</div>
-          <div className="date-display">{new Date().toLocaleDateString('ja-JP')}</div>
-        </div>
-
-        <div className="nav-tabs" style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.2)', padding: '6px', borderRadius: '12px', alignSelf: 'flex-start' }}>
-          <button className={`nav-tab ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>出退勤ダッシュボード</button>
-          <button className={`nav-tab ${activeTab === 'report' ? 'active' : ''}`} onClick={() => setActiveTab('report')}>月次レポート</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div className="nav-tabs" style={{ display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '10px' }}>
+              <button className={`nav-tab ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>出退勤</button>
+              <button className={`nav-tab ${activeTab === 'report' ? 'active' : ''}`} onClick={() => setActiveTab('report')}>月次レポート</button>
+            </div>
+            <div className="date-display">{new Date().toLocaleDateString('ja-JP')}</div>
+          </div>
         </div>
       </header>
 
@@ -72,13 +73,13 @@ function App() {
                 </div>
               )}
 
-              <div className="action-buttons">
+              <div className="action-buttons" style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
                 {!working ? (
-                  <button className="btn btn-primary btn-glow" onClick={clockIn} disabled={onBreak}>
+                  <button className="btn btn-primary" onClick={clockIn} disabled={onBreak}>
                     <span>▶ 出勤</span>
                   </button>
                 ) : (
-                  <button className="btn btn-danger btn-glow" onClick={clockOut} disabled={onBreak}>
+                  <button className="btn btn-danger" onClick={clockOut} disabled={onBreak}>
                     <span>■ 退勤</span>
                   </button>
                 )}

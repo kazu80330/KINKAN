@@ -35,6 +35,7 @@ export function Pomodoro({ working, autoStart, onPomodoroComplete }: PomodoroPro
   const [mode, setMode] = useState<'work' | 'break'>('work');
   const [isActive, setIsActive] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [pomodoroCount, setPomodoroCount] = useState(0);
 
   // autoStart が有効なら出勤と同時にスタート、退勤でリセット
   useEffect(() => {
@@ -52,6 +53,7 @@ export function Pomodoro({ working, autoStart, onPomodoroComplete }: PomodoroPro
     playChime(completedMode);
     if (completedMode === 'work') {
       onPomodoroComplete?.();
+      setPomodoroCount(c => c + 1);
     }
     const newMode = completedMode === 'work' ? 'break' : 'work';
     setMode(newMode);
@@ -82,38 +84,99 @@ export function Pomodoro({ working, autoStart, onPomodoroComplete }: PomodoroPro
     return `${m}:${s}`;
   };
 
+  const handleReset = () => {
+    setIsActive(false);
+    setTimeLeft(mode === 'work' ? 25 * 60 : 5 * 60);
+    setProgress(0);
+  };
+
+  const handleSkip = () => {
+    const newMode = mode === 'work' ? 'break' : 'work';
+    setMode(newMode);
+    setTimeLeft(newMode === 'work' ? 25 * 60 : 5 * 60);
+    setProgress(0);
+    setIsActive(false);
+  };
+
   const circumference = 2 * Math.PI * 45;
   const strokeDashoffset = circumference - (progress / 100) * circumference;
 
   return (
     <div className="pomodoro-card glass-panel">
       <div className="pomodoro-header">
-        <h3 className="section-title">POMODORO</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <h3 className="section-title" style={{ margin: 0 }}>ポモドーロタイマー</h3>
+        </div>
         <div className="mode-tabs">
-          <button className={`mode-tab ${mode === 'work' ? 'active' : ''}`} onClick={() => { setMode('work'); setTimeLeft(25 * 60); setProgress(0); }}>Work</button>
-          <button className={`mode-tab ${mode === 'break' ? 'active' : ''}`} onClick={() => { setMode('break'); setTimeLeft(5 * 60); setProgress(0); }}>Break</button>
+          <button
+            className={`mode-tab ${mode === 'work' ? 'active' : ''}`}
+            onClick={() => { setMode('work'); setTimeLeft(25 * 60); setProgress(0); setIsActive(false); }}
+          >
+            作業 25分
+          </button>
+          <button
+            className={`mode-tab ${mode === 'break' ? 'active' : ''}`}
+            onClick={() => { setMode('break'); setTimeLeft(5 * 60); setProgress(0); setIsActive(false); }}
+          >
+            休憩 5分
+          </button>
         </div>
       </div>
 
-      <div className="pomodoro-ring">
-        <svg viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="45" className="ring-bg"></circle>
-          <circle
-            cx="50" cy="50" r="45"
-            className={`ring-progress ${mode === 'break' ? 'break-mode' : ''}`}
-            style={{ strokeDashoffset, strokeDasharray: circumference }}
-          ></circle>
-        </svg>
-        <div className="time-display">{formatTime(timeLeft)}</div>
+      <div style={{ textAlign: 'center', padding: '24px 0' }}>
+        <div className="pomodoro-ring">
+          <svg viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="45" className="ring-bg"></circle>
+            <circle
+              cx="50" cy="50" r="45"
+              className={`ring-progress ${mode === 'break' ? 'break-mode' : ''}`}
+              style={{ strokeDashoffset, strokeDasharray: circumference }}
+            ></circle>
+          </svg>
+          <div className="time-display">{formatTime(timeLeft)}</div>
+        </div>
+        <div className="pomodoro-phase">{mode === 'work' ? '作業時間' : '休憩時間'}</div>
+
+        {/* ポモドーロ達成ドット */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '12px' }}>
+          {[...Array(Math.min(pomodoroCount + 4, 8))].map((_, i) => (
+            <div
+              key={i}
+              style={{
+                width: '8px', height: '8px', borderRadius: '50%',
+                background: i < pomodoroCount ? 'var(--accent)' : 'transparent',
+                border: '1px solid var(--surface-border)',
+                transition: 'all 0.3s',
+              }}
+            />
+          ))}
+        </div>
       </div>
 
-      <div className="pomodoro-controls">
+      <div className="pomodoro-actions">
         <button
-          className="btn btn-outline"
+          className="btn btn-outline btn-sm"
+          onClick={handleReset}
+          disabled={!working}
+          style={{ flex: 1 }}
+        >
+          ↺ リセット
+        </button>
+        <button
+          className="btn btn-primary btn-sm"
           onClick={() => setIsActive(!isActive)}
           disabled={!working}
+          style={{ flex: 1 }}
         >
-          {isActive ? '一時停止' : '再開'}
+          {isActive ? '⏸ 一時停止' : '▶ スタート'}
+        </button>
+        <button
+          className="btn btn-outline btn-sm"
+          onClick={handleSkip}
+          disabled={!working}
+          style={{ flex: 1 }}
+        >
+          → スキップ
         </button>
       </div>
     </div>
