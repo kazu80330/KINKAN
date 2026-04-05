@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm run:*)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\kazu8\\Documents\\antigravity\\KINKAN\\kinkan-web"
+    ]
+  }
+}

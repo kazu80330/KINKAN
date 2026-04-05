@@ -1,0 +1,2921 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KINKAN — 勤怠管理</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://apis.google.com/js/api.js"></script>
+<script src="https://accounts.google.com/gsi/client"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap');
+
+  :root {
+    --bg: #0f0f13;
+    --surface: #16161d;
+    --surface2: #1e1e28;
+    --border: #2a2a38;
+    --accent: #7c6af7;
+    --accent2: #f76a8c;
+    --success: #6af7a8;
+    --warning: #f7d46a;
+    --text: #e8e8f0;
+    --text-dim: #7070a0;
+    --red: #f76a6a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 48px;
+    background-image:
+      radial-gradient(ellipse at 20% 10%, rgba(124,106,247,0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 80%, rgba(247,106,140,0.06) 0%, transparent 50%);
+  }
+
+  header {
+    width: 100%;
+    max-width: 680px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 0 32px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 32px;
+  }
+
+  .logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+
+  .date-display {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    text-align: right;
+  }
+
+  .main {
+    width: 100%;
+    max-width: 680px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* Status Bar */
+  .status-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+
+  .status-dot.working { background: var(--success); box-shadow: 0 0 12px var(--success); animation: pulse 2s infinite; }
+  .status-dot.break { background: var(--warning); box-shadow: 0 0 12px var(--warning); animation: pulse 2s infinite; }
+  .status-dot.pomodoro { background: var(--accent); box-shadow: 0 0 12px var(--accent); animation: pulse 1.5s infinite; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .status-info { flex: 1; }
+  .status-label { font-size: 12px; color: var(--text-dim); margin-bottom: 2px; }
+  .status-value { font-size: 15px; font-weight: 500; }
+
+  .elapsed {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--text-dim);
+    text-align: right;
+  }
+
+  /* Clock In/Out Card */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+  }
+
+  .card-title {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 16px;
+  }
+
+  .clock-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 10px;
+  }
+
+  .clock-row-top,
+  .clock-row-bottom {
+    display: contents;
+  }
+
+  .time-slot {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    text-align: center;
+  }
+
+  .time-slot-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+
+  .time-slot-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--text);
+  }
+
+  .time-slot-value.set { color: var(--success); }
+
+  /* Buttons */
+  .btn {
+    border: none;
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+    flex: 1;
+  }
+
+  .btn-primary:hover:not(:disabled) { background: #9480ff; }
+
+  .btn-danger {
+    background: var(--accent2);
+    color: white;
+    flex: 1;
+  }
+
+  .btn-danger:hover:not(:disabled) { background: #ff8aaa; }
+
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    flex: 1;
+  }
+
+  .btn-outline:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+
+  .btn-success {
+    background: rgba(106,247,168,0.12);
+    border: 1px solid var(--success);
+    color: var(--success);
+    flex: 1;
+  }
+
+  .btn-success:hover:not(:disabled) { background: rgba(106,247,168,0.2); }
+
+  .action-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  /* Pomodoro Card */
+  .pomodoro-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+  }
+
+  .pomodoro-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .pomodoro-mode {
+    display: flex;
+    gap: 4px;
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 4px;
+  }
+
+  .mode-btn {
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+
+  .mode-btn.active {
+    background: var(--accent);
+    color: white;
+  }
+
+  .timer-display {
+    text-align: center;
+    padding: 24px 0;
+    position: relative;
+  }
+
+  .timer-ring {
+    position: relative;
+    width: 180px;
+    height: 180px;
+    margin: 0 auto 20px;
+  }
+
+  .timer-ring svg {
+    transform: rotate(-90deg);
+  }
+
+  .timer-ring-track {
+    fill: none;
+    stroke: var(--border);
+    stroke-width: 6;
+  }
+
+  .timer-ring-progress {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 6;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s linear, stroke 0.3s;
+  }
+
+  .timer-ring-progress.break-mode {
+    stroke: var(--warning);
+  }
+
+  .timer-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+
+  .timer-time {
+    font-family: 'Space Mono', monospace;
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 2px;
+  }
+
+  .timer-phase {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    letter-spacing: 1px;
+  }
+
+  .pomodoro-count {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+
+  .pomo-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: transparent;
+    transition: all 0.3s;
+  }
+
+  .pomo-dot.done {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .pomodoro-actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  /* Break Card */
+  .break-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+  }
+
+  .break-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  .break-stat {
+    text-align: center;
+  }
+
+  .break-stat-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .break-stat-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  /* Records */
+  .records-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+  }
+
+  .records-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .record-item {
+    display: grid;
+    grid-template-columns: 60px 1fr 1fr 1fr 1fr 1fr;
+    gap: 5px;
+    padding: 10px 12px;
+    background: var(--surface2);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    font-size: 11px;
+    align-items: center;
+  }
+
+  .record-item.record-single {
+    border-radius: 8px;
+    margin-bottom: 6px;
+  }
+
+  .record-header-row {
+    display: grid;
+    grid-template-columns: 60px 1fr 1fr 1fr 1fr 1fr;
+    gap: 5px;
+    padding: 4px 12px 8px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  /* アコーディオン：複数セッション */
+  .record-group {
+    margin-bottom: 6px;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .record-group-header {
+    display: grid;
+    grid-template-columns: 60px 1fr 1fr 1fr 1fr 1fr;
+    gap: 5px;
+    padding: 10px 12px;
+    background: var(--surface2);
+    font-size: 11px;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+  }
+
+  .record-group-header:hover { background: rgba(124,106,247,0.1); }
+
+  .record-group-header .expand-icon {
+    font-size: 10px;
+    color: var(--text-dim);
+    transition: transform 0.2s;
+    display: inline-block;
+    margin-left: 4px;
+  }
+
+  .record-group-header.open .expand-icon { transform: rotate(180deg); }
+
+  .record-sessions {
+    display: none;
+    border-top: 1px solid var(--border);
+  }
+
+  .record-sessions.open { display: block; }
+
+  .record-session-row {
+    display: grid;
+    grid-template-columns: 60px 1fr 1fr 1fr 1fr 1fr;
+    gap: 5px;
+    padding: 8px 12px;
+    background: rgba(20,20,30,0.6);
+    font-size: 11px;
+    align-items: center;
+    border-top: 1px solid rgba(42,42,56,0.5);
+  }
+
+  .record-session-row:first-child { border-top: none; }
+
+  .record-session-label {
+    font-size: 10px;
+    color: var(--accent);
+    background: rgba(124,106,247,0.12);
+    border-radius: 4px;
+    padding: 1px 6px;
+    white-space: nowrap;
+    display: inline-block;
+  }
+
+  .record-date {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .record-time {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+  }
+
+  .record-duration {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--success);
+    text-align: left;
+  }
+
+  .records-empty {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+    padding: 20px;
+  }
+
+  /* Export */
+  .export-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  /* Pomodoro auto-start checkbox */
+  .pomo-auto-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: var(--text-dim);
+    cursor: pointer;
+    user-select: none;
+  }
+  .pomo-auto-label input[type=checkbox] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 15px; height: 15px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface2);
+    cursor: pointer;
+    position: relative;
+    flex-shrink: 0;
+    transition: all 0.15s;
+  }
+  .pomo-auto-label input[type=checkbox]:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .pomo-auto-label input[type=checkbox]:checked::after {
+    content: '✓';
+    position: absolute;
+    top: -1px; left: 2px;
+    font-size: 11px;
+    color: white;
+    font-weight: 700;
+  }
+  .pomo-auto-label:hover span { color: var(--text); }
+
+  /* Manual edit badge */
+  .badge-manual {
+    background: rgba(247,212,106,0.15);
+    color: var(--warning);
+    border: 1px solid rgba(247,212,106,0.3);
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 4px;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .manual-row td:first-child .day-label-inner::after {
+    content: ' ✎';
+    font-size: 10px;
+    color: var(--warning);
+    opacity: 0.8;
+  }
+
+  /* Edit Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .modal-overlay.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px;
+    width: min(460px, calc(100vw - 32px));
+    transform: translateY(16px);
+    transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1);
+    position: relative;
+  }
+  .modal-overlay.open .modal { transform: translateY(0); }
+  .modal-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .modal-date {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 20px;
+  }
+  .modal-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .modal-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .modal-field label {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .modal-field input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+  .modal-field input:focus { border-color: var(--accent); }
+  .modal-note {
+    font-size: 11px;
+    color: var(--warning);
+    background: rgba(247,212,106,0.07);
+    border: 1px solid rgba(247,212,106,0.2);
+    border-radius: 8px;
+    padding: 9px 12px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1.5;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .modal-close {
+    position: absolute;
+    top: 16px; right: 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-dim);
+    transition: all 0.15s;
+  }
+  .modal-close:hover { color: var(--text); border-color: var(--text-dim); }
+
+  /* clickable table rows */
+  .monthly-table tbody tr { cursor: pointer; transition: background 0.12s; }
+  .monthly-table tbody tr:hover td { background: rgba(124,106,247,0.07) !important; }
+
+  /* Excel Link Banner */
+  .excel-banner {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+  }
+  .excel-banner.linked { border-color: rgba(106,247,168,0.4); }
+  .excel-banner.linked .excel-icon { color: var(--success); }
+  .excel-banner.unlinked { border-color: rgba(247,212,106,0.3); }
+  .excel-banner.unlinked .excel-icon { color: var(--warning); }
+  .excel-icon { font-size: 20px; flex-shrink: 0; }
+  .excel-info { flex: 1; min-width: 0; }
+  .excel-info-name {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 280px;
+  }
+  .excel-info-sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .excel-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .btn-xs {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+  .btn-xs:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-xs.primary { background: var(--accent); border-color: var(--accent); color: white; }
+  .btn-xs.primary:hover { background: #9480ff; }
+  .btn-xs.danger { border-color: var(--accent2); color: var(--accent2); }
+  .btn-xs.danger:hover { background: rgba(247,106,140,0.1); }
+
+  .sync-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 3px;
+  }
+  .sync-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .sync-dot.ok { background: var(--success); }
+  .sync-dot.writing { background: var(--warning); animation: pulse 0.8s infinite; }
+  .sync-dot.error { background: var(--red); }
+
+  .notification {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface2);
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    padding: 14px 20px;
+    font-size: 13px;
+    max-width: 280px;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 100;
+  }
+
+  .notification.show {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .tag-work { background: rgba(106,247,168,0.1); color: var(--success); }
+  .tag-break { background: rgba(247,212,106,0.1); color: var(--warning); }
+
+  /* Nav */
+  .nav-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 4px;
+  }
+  .nav-tab {
+    padding: 7px 16px;
+    border-radius: 7px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 12px;
+    font-family: 'Noto Sans JP', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .nav-tab.active { background: var(--accent); color: white; }
+  .nav-tab:hover:not(.active) { color: var(--text); }
+
+  /* Pages */
+  .page { display: none; width: 100%; max-width: 680px; flex-direction: column; gap: 20px; }
+  .page.active { display: flex; }
+
+  /* Report Page */
+  .report-controls {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .month-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+  }
+  .month-nav-btn {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .month-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .month-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    flex: 1;
+    text-align: center;
+  }
+
+  /* Summary Cards */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    text-align: center;
+  }
+  .summary-card-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: var(--accent);
+  }
+  .summary-card-label {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  /* Monthly Table */
+  .table-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    overflow-x: auto;
+  }
+  .monthly-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .monthly-table th {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 0 10px 12px;
+    text-align: center;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .monthly-table th:first-child { text-align: left; }
+  .monthly-table td {
+    padding: 8px 10px;
+    text-align: center;
+    border-top: 1px solid var(--border);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .monthly-table td:first-child {
+    text-align: left;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+  }
+  .monthly-table tr.today-row td { background: rgba(124,106,247,0.06); }
+  .monthly-table tr.has-data:hover td { background: rgba(255,255,255,0.03); }
+  .monthly-table tr.weekend td:first-child { color: var(--accent2); }
+  .monthly-table tr.holiday td:first-child { color: var(--warning); }
+
+  .work-bar {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: center;
+  }
+  .work-bar-fill {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--accent);
+    min-width: 2px;
+    transition: width 0.4s ease;
+  }
+  .empty-cell { color: var(--border); }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 10px;
+  }
+  .badge-work { background: rgba(106,247,168,0.1); color: var(--success); }
+  .badge-ongoing { background: rgba(124,106,247,0.15); color: var(--accent); }
+
+  /* Bar chart */
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+  }
+  .bar-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 5px;
+    height: 80px;
+    margin-top: 16px;
+    padding-bottom: 24px;
+    position: relative;
+  }
+  .bar-chart::after {
+    content: '';
+    position: absolute;
+    bottom: 23px; left: 0; right: 0;
+    height: 1px;
+    background: var(--border);
+  }
+  .bar-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    position: relative;
+  }
+  .bar-fill {
+    width: 100%;
+    border-radius: 3px 3px 0 0;
+    background: var(--accent);
+    opacity: 0.7;
+    min-height: 0;
+    transition: height 0.5s ease, opacity 0.2s;
+    cursor: default;
+  }
+  .bar-fill:hover { opacity: 1; }
+  .bar-fill.manual-bar { background: var(--warning); opacity: 0.75; }
+  .bar-fill.manual-bar:hover { opacity: 1; }
+  .bar-fill.today-bar { background: var(--success); opacity: 1; }
+  .bar-label {
+    position: absolute;
+    bottom: 0;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--text-dim);
+  }
+
+  /* Responsive */
+  @media (max-width: 560px) {
+    .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    .monthly-table th:nth-child(n+5),
+    .monthly-table td:nth-child(n+5) { display: none; }
+  }
+  @media (max-width: 480px) {
+    .record-item { grid-template-columns: 70px 1fr 1fr; }
+    .record-duration { display: none; }
+    .timer-time { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">KINKAN</div>
+  <div style="display:flex;align-items:center;gap:16px">
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="showPage('home')">出退勤</button>
+      <button class="nav-tab" onclick="showPage('report')">月次レポート</button>
+    </div>
+    <div class="date-display" id="headerDate"></div>
+  </div>
+</header>
+
+<div class="page active" id="page-home">
+
+  <!-- Google Sheets Link Banner -->
+  <div class="excel-banner unlinked" id="excelBanner">
+    <div class="excel-icon">🟢</div>
+    <div class="excel-info">
+      <div class="excel-info-name" id="excelFileName">Google Sheets 未連携</div>
+      <div class="excel-info-sub">
+        <span class="sync-indicator">
+          <span class="sync-dot" id="syncDot"></span>
+          <span id="syncStatus">Googleアカウントでログインして同期します</span>
+        </span>
+      </div>
+    </div>
+    <div class="excel-actions">
+      <button class="btn-xs primary" id="btnExcelLink" onclick="gsLogin()">🔑 Googleログイン</button>
+      <button class="btn-xs" id="btnExcelNew" onclick="gsCreateSheet()" style="display:none">＋ 新規作成</button>
+      <button class="btn-xs danger" id="btnExcelUnlink" onclick="gsLogout()" style="display:none">✕ ログアウト</button>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <div class="status-info">
+      <div class="status-label">現在のステータス</div>
+      <div class="status-value" id="statusText">未出勤</div>
+    </div>
+    <div class="elapsed" id="elapsedTime">--:--:--</div>
+  </div>
+
+  <!-- Clock In/Out -->
+  <div class="card">
+    <div class="card-title">出退勤</div>
+    <div class="clock-row">
+      <div class="time-slot">
+        <div class="time-slot-label">出勤時刻</div>
+        <div class="time-slot-value" id="clockInTime">--:--:--</div>
+      </div>
+      <div class="time-slot">
+        <div class="time-slot-label">勤務時間</div>
+        <div class="time-slot-value" id="workDuration">--:--:--</div>
+      </div>
+      <div class="time-slot">
+        <div class="time-slot-label">休憩時間</div>
+        <div class="time-slot-value" id="breakDuration">00:00:00</div>
+      </div>
+      <div class="time-slot">
+        <div class="time-slot-label">退勤時刻</div>
+        <div class="time-slot-value" id="clockOutTime">--:--:--</div>
+      </div>
+      <div class="time-slot">
+        <div class="time-slot-label">総勤務時間</div>
+        <div class="time-slot-value" id="totalWorkDuration">--:--:--</div>
+      </div>
+      <div class="time-slot">
+        <div class="time-slot-label">総休憩時間</div>
+        <div class="time-slot-value" id="totalBreakDuration">00:00:00</div>
+      </div>
+    </div>
+    <div class="action-row">
+      <button class="btn btn-primary" id="btnClockIn" onclick="clockIn()">▶ 出勤</button>
+      <button class="btn btn-danger" id="btnClockOut" onclick="clockOut()" disabled>■ 退勤</button>
+    </div>
+  </div>
+
+  <!-- Pomodoro -->
+  <div class="pomodoro-card">
+    <div class="pomodoro-header">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="card-title" style="margin:0">ポモドーロタイマー</div>
+        <label class="pomo-auto-label">
+          <input type="checkbox" id="chkAutoPomodoro" onchange="saveAutoPomodoroPref()">
+          <span>出勤時に自動スタート</span>
+        </label>
+      </div>
+      <div class="pomodoro-mode">
+        <button class="mode-btn active" id="modeWork" onclick="setMode('work')">作業 25分</button>
+        <button class="mode-btn" id="modeBreak" onclick="setMode('break')">休憩 5分</button>
+      </div>
+    </div>
+
+    <div class="timer-display">
+      <div class="timer-ring">
+        <svg width="180" height="180" viewBox="0 0 180 180">
+          <circle class="timer-ring-track" cx="90" cy="90" r="82"/>
+          <circle class="timer-ring-progress" id="timerProgress" cx="90" cy="90" r="82"
+            stroke-dasharray="515.2"
+            stroke-dashoffset="0"/>
+        </svg>
+        <div class="timer-center">
+          <div class="timer-time" id="timerDisplay">25:00</div>
+          <div class="timer-phase" id="timerPhase">作業時間</div>
+        </div>
+      </div>
+
+      <div class="pomodoro-count" id="pomodoroCount"></div>
+    </div>
+
+    <div class="pomodoro-actions">
+      <button class="btn btn-outline" id="btnPomReset" onclick="resetPomodoro()">↺ リセット</button>
+      <button class="btn btn-primary" id="btnPomStart" onclick="togglePomodoro()" disabled>▶ スタート</button>
+      <button class="btn btn-outline" id="btnPomSkip" onclick="skipPomodoro()">→ スキップ</button>
+    </div>
+  </div>
+
+  <!-- Break -->
+  <div class="break-card">
+    <div class="card-title">休憩管理</div>
+    <div class="action-row">
+      <button class="btn btn-outline" id="btnBreakStart" onclick="startBreak()" disabled>☕ 休憩開始</button>
+      <button class="btn btn-success" id="btnBreakEnd" onclick="endBreak()" disabled>✓ 休憩終了</button>
+    </div>
+    <div class="break-info">
+      <div class="break-stat">
+        <div class="break-stat-value" id="breakStartTime">--:--:--</div>
+        <div class="break-stat-label">休憩開始時刻</div>
+      </div>
+      <div class="break-stat">
+        <div class="break-stat-value" id="currentBreakTime">00:00:00</div>
+        <div class="break-stat-label">休憩時間</div>
+      </div>
+      <div class="break-stat">
+        <div class="break-stat-value" id="totalBreakTime">00:00:00</div>
+        <div class="break-stat-label">累計休憩時間</div>
+      </div>
+      <div class="break-stat">
+        <div class="break-stat-value" id="breakCount">0</div>
+        <div class="break-stat-label">休憩回数</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Records -->
+  <div class="records-card">
+    <div class="records-header">
+      <div class="card-title" style="margin:0">勤務記録</div>
+      <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--text-dim)" id="recordMonth"></div>
+    </div>
+    <div id="recordsList"><div class="records-empty">記録がありません</div></div>
+    <div class="export-row">
+      <button class="btn btn-outline" onclick="exportXlsx()">⬇ .xlsxでエクスポート</button>
+    </div>
+  </div>
+
+</div><!-- /#page-home -->
+
+<!-- ── REPORT PAGE ───────────────────────────────────────────────────── -->
+<div class="page" id="page-report">
+
+  <!-- Month Navigator -->
+  <div class="report-controls">
+    <div class="month-nav">
+      <button class="month-nav-btn" onclick="reportPrevMonth()">‹</button>
+      <div class="month-label" id="reportMonthLabel">----年--月</div>
+      <button class="month-nav-btn" onclick="reportNextMonth()">›</button>
+    </div>
+    <button class="btn btn-outline" style="flex:none;padding:8px 14px;font-size:12px" onclick="exportXlsx()">⬇ xlsx</button>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="summary-grid" id="reportSummary">
+    <div class="summary-card">
+      <div class="summary-card-value" id="sumWorkDays">0</div>
+      <div class="summary-card-label">出勤日数</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-card-value" id="sumTotalHours">0:00</div>
+      <div class="summary-card-label">総勤務時間</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-card-value" id="sumAvgHours">0:00</div>
+      <div class="summary-card-label">平均勤務時間</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-card-value" id="sumPomodoros">0</div>
+      <div class="summary-card-label">🍅 総ポモドーロ</div>
+    </div>
+  </div>
+
+  <!-- Bar Chart -->
+  <div class="chart-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0">
+      <div class="card-title" style="margin:0">日別勤務時間</div>
+      <button class="btn-xs" onclick="downloadChartPng()" style="font-size:11px">⬇ PNG保存</button>
+    </div>
+    <canvas id="reportChartCanvas" style="width:100%;margin-top:16px;border-radius:8px;display:none"></canvas>
+    <div class="bar-chart" id="reportBarChart"></div>
+  </div>
+
+  <!-- Full-month Table -->
+  <div class="table-card">
+    <div class="card-title" style="margin-bottom:16px">月次勤務記録</div>
+    <table class="monthly-table">
+      <thead>
+        <tr>
+          <th>日付</th>
+          <th>出勤</th>
+          <th>退勤</th>
+          <th>勤務時間</th>
+          <th>休憩</th>
+          <th>🍅</th>
+        </tr>
+      </thead>
+      <tbody id="reportTableBody"></tbody>
+    </table>
+  </div>
+
+</div><!-- /#page-report -->
+
+<!-- ── EDIT MODAL ──────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="editModalOverlay" onclick="closeEditModal(event)">
+  <div class="modal">
+    <button class="modal-close" onclick="closeEditModal()">✕</button>
+    <div class="modal-title" id="modalTitle">記録を編集</div>
+    <div class="modal-date" id="modalDateLabel"></div>
+    <div class="modal-note" id="modalNote" style="display:none">
+      ⚠ <span id="modalNoteText"></span>
+    </div>
+    <div class="modal-fields">
+      <div class="modal-field">
+        <label>出勤時刻</label>
+        <input type="time" id="modalClockIn" step="1">
+      </div>
+      <div class="modal-field">
+        <label>退勤時刻</label>
+        <input type="time" id="modalClockOut" step="1">
+      </div>
+      <div class="modal-field">
+        <label>休憩回数</label>
+        <input type="number" id="modalBreaks" min="0" max="99" placeholder="0">
+      </div>
+      <div class="modal-field">
+        <label>🍅 ポモドーロ</label>
+        <input type="number" id="modalPomodoros" min="0" max="99" placeholder="0">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-xs danger" id="modalDeleteBtn" onclick="deleteEditRecord()" style="margin-right:auto">🗑 削除</button>
+      <button class="btn-xs" onclick="closeEditModal()">キャンセル</button>
+      <button class="btn-xs primary" onclick="saveEditRecord()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="notification" id="notification"></div>
+
+<audio id="chimeWork" preload="auto"></audio>
+<audio id="chimeBreak" preload="auto"></audio>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const STATE = {
+  isWorking: false,
+  clockInTime: null,
+  clockOutTime: null,
+  firstClockInTime: null,
+  isOnBreak: false,
+  breakStartTime: null,
+  breakCount: 0,
+  totalBreakSeconds: 0,
+  totalAwaySeconds: 0,   // 再出勤の離席時間（休憩とは別管理）
+  sessions: [],
+  sessionWorkSec: 0,
+
+  // Pomodoro
+  pomodoroMode: 'work',
+  pomodoroRunning: false,
+  pomodoroSeconds: 25 * 60,
+  pomodoroTotal: 25 * 60,
+  pomodoroCount: 0,
+  pomodoroInterval: null,
+  pomodoroBreaking: false,      // ポモドーロ休憩中フラグ
+  pomodoroBreakStart: null,     // ポモドーロ休憩開始時刻
+
+  // Clock
+  clockInterval: null,
+};
+
+const RECORDS_KEY = 'kinkan_records';
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function fmt(d) {
+  if (!d) return '--:--:--';
+  return d.toTimeString().slice(0,8); // hh:mm:ss
+}
+
+// 日跨ぎ対応：基準日(baseDate)と比較して24時間以上なら25:00:00形式で返す
+function fmtOvernight(d, baseDate) {
+  if (!d) return '--:--:--';
+  const base = baseDate || d;
+  const baseDay = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+  const diffMs = d - baseDay;
+  const totalSec = Math.floor(diffMs / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function fmtSec(s) {
+  // 常にhh:mm:ss表記
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+function fmtDate(d) {
+  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+}
+function monthKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function now() { return new Date(); }
+
+function notify(msg, type = 'default') {
+  const el = document.getElementById('notification');
+  el.textContent = msg;
+  el.style.borderColor = type === 'success' ? 'var(--success)' : type === 'warn' ? 'var(--warning)' : 'var(--accent)';
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+function playSound(type) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    if (type === 'work') {
+      o.frequency.setValueAtTime(880, ctx.currentTime);
+      o.frequency.setValueAtTime(660, ctx.currentTime + 0.15);
+    } else {
+      o.frequency.setValueAtTime(520, ctx.currentTime);
+      o.frequency.setValueAtTime(780, ctx.currentTime + 0.15);
+    }
+    g.gain.setValueAtTime(0.3, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+    o.start(ctx.currentTime);
+    o.stop(ctx.currentTime + 0.6);
+  } catch(e) {}
+}
+
+// ── Storage ────────────────────────────────────────────────────────────────
+function getRecords() {
+  try { return JSON.parse(localStorage.getItem(RECORDS_KEY) || '{}'); } catch { return {}; }
+}
+function saveRecord(record) {
+  const all = getRecords();
+  const key = monthKey(new Date(record.date));
+  if (!all[key]) all[key] = [];
+  // update or append
+  const idx = all[key].findIndex(r => r.date === record.date);
+  if (idx >= 0) all[key][idx] = record;
+  else all[key].push(record);
+  localStorage.setItem(RECORDS_KEY, JSON.stringify(all));
+}
+
+// Current day record
+let todayRecord = null;
+
+function initToday() {
+  const key = monthKey(now());
+  const dateStr = fmtDate(now());
+  const all = getRecords();
+  todayRecord = (all[key] || []).find(r => r.date === dateStr) || null;
+  if (!todayRecord) return;
+
+  // セッション履歴を復元
+  STATE.sessions = todayRecord.sessions || [];
+  STATE.sessionWorkSec = STATE.sessions.reduce((sum, s) => {
+    return sum + Math.floor((new Date(s.out) - new Date(s.in)) / 1000);
+  }, 0);
+  STATE.breakCount = todayRecord.breaks || 0;
+  STATE.totalBreakSeconds = todayRecord.totalBreakSec || 0;
+  STATE.pomodoroCount = todayRecord.pomodoros || 0;
+
+  // 最初の出勤時刻
+  STATE.firstClockInTime = new Date(todayRecord.clockInRaw);
+  document.getElementById('clockInTime').textContent = fmt(STATE.firstClockInTime);
+  document.getElementById('clockInTime').classList.add('set');
+  document.getElementById('breakCount').textContent = STATE.breakCount;
+  document.getElementById('totalBreakTime').textContent = fmtSec(STATE.totalBreakSeconds);
+
+  if (todayRecord.clockIn && !todayRecord.clockOut) {
+    // 勤務中セッションを復元
+    STATE.isWorking = true;
+    STATE.clockInTime = new Date(todayRecord.clockInRaw);
+    // セッション済み分を除いた最新の出勤時刻を推定
+    if (STATE.sessions.length > 0) {
+      const lastOut = new Date(STATE.sessions[STATE.sessions.length - 1].out);
+      STATE.clockOutTime = lastOut;
+      // 最後のセッションのout以降が現セッション開始
+      // clockInRawは最初の出勤なので、最後のセッションoutを現セッション開始とみなす
+      STATE.clockInTime = lastOut;
+    }
+    updateUI();
+    startClock();
+  } else if (todayRecord.clockOut) {
+    // 退勤済み（再出勤待ち状態）
+    STATE.clockOutTime = new Date(todayRecord.clockOutRaw);
+    document.getElementById('clockOutTime').textContent = fmt(STATE.clockOutTime);
+    document.getElementById('clockOutTime').classList.add('set');
+    document.getElementById('workDuration').textContent = fmtSec(todayRecord.workSec || 0);
+    document.getElementById('totalWorkDuration').textContent = fmtSec(todayRecord.workSec || 0);
+    updateUI();
+  }
+}
+
+// ── Clock In / Out ─────────────────────────────────────────────────────────
+function clockIn() {
+  if (STATE.isWorking) return;
+
+  const isReEntry = STATE.clockOutTime !== null;
+  STATE.isWorking = true;
+  STATE.clockInTime = now();
+  STATE.isOnBreak = false;
+
+  if (!isReEntry) {
+    // 初回出勤：全リセット
+    STATE.firstClockInTime = STATE.clockInTime;
+    STATE.breakCount = 0;
+    STATE.totalBreakSeconds = 0;
+    STATE.sessions = [];
+    STATE.sessionWorkSec = 0;
+    STATE.pomodoroCount = 0;
+  } else {
+    // 再出勤：離席時間は休憩には加算しない（別途awaySecとして記録）
+    const awaySeconds = Math.floor((STATE.clockInTime - STATE.clockOutTime) / 1000);
+    STATE.totalAwaySeconds = (STATE.totalAwaySeconds || 0) + awaySeconds;
+    notify(`✅ 再出勤しました！（離席時間 ${fmtSec(awaySeconds)}）`, 'success');
+  }
+
+  const dateStr = fmtDate(STATE.firstClockInTime || STATE.clockInTime);
+
+  if (!isReEntry) {
+    todayRecord = {
+      date: dateStr,
+      clockIn: fmt(STATE.firstClockInTime),
+      clockInRaw: STATE.firstClockInTime.toISOString(),
+      clockOut: null,
+      workSec: 0,
+      breaks: 0,
+      totalBreakSec: 0,
+      awaySec: 0,
+      pomodoros: 0,
+      manual: false,
+      sessions: [],
+    };
+  } else {
+    todayRecord.clockOut = null;
+  }
+
+  saveRecord(todayRecord);
+
+  document.getElementById('clockInTime').textContent = fmt(STATE.clockInTime);
+  document.getElementById('clockInTime').classList.add('set');
+  document.getElementById('clockOutTime').textContent = '--:--:--';
+  document.getElementById('clockOutTime').classList.remove('set');
+  document.getElementById('workDuration').textContent = '--:--:--';
+  document.getElementById('elapsedTime').textContent = '--:--:--';
+
+  updateUI();
+  startClock();
+
+  if (!isReEntry) {
+    if (document.getElementById('chkAutoPomodoro').checked) {
+      setMode('work');
+      STATE.pomodoroRunning = true;
+      document.getElementById('btnPomStart').textContent = '⏸ 一時停止';
+      STATE.pomodoroInterval = setInterval(tickPomodoro, 1000);
+      notify('✅ 出勤しました！ポモドーロを自動スタートしました 🍅', 'success');
+    } else {
+      notify('✅ 出勤しました！', 'success');
+    }
+  } else {
+    if (document.getElementById('chkAutoPomodoro').checked) {
+      setMode('work');
+      STATE.pomodoroRunning = true;
+      document.getElementById('btnPomStart').textContent = '⏸ 一時停止';
+      STATE.pomodoroInterval = setInterval(tickPomodoro, 1000);
+    }
+  }
+}
+
+// ── Pomodoro preference ────────────────────────────────────────────────────
+function saveAutoPomodoroPref() {
+  localStorage.setItem('kinkan_autoPomodoro', document.getElementById('chkAutoPomodoro').checked ? '1' : '0');
+}
+function loadAutoPomodoroPref() {
+  const v = localStorage.getItem('kinkan_autoPomodoro');
+  // 未設定（初回）はデフォルトON
+  document.getElementById('chkAutoPomodoro').checked = (v === null) ? true : (v === '1');
+}
+
+function clockOut() {
+  if (!STATE.isWorking) return;
+  if (STATE.isOnBreak) endBreak();
+  if (STATE.pomodoroRunning) {
+    clearInterval(STATE.pomodoroInterval);
+    STATE.pomodoroRunning = false;
+  }
+  // ポモドーロ休憩中だった場合も経過分を確定
+  if (STATE.pomodoroBreaking && STATE.pomodoroBreakStart) {
+    const pomBreakSec = Math.floor((now() - STATE.pomodoroBreakStart) / 1000);
+    STATE.totalBreakSeconds += pomBreakSec;
+    STATE.pomodoroBreaking = false;
+    STATE.pomodoroBreakStart = null;
+  }
+
+  STATE.isWorking = false;
+  STATE.clockOutTime = now();
+  clearInterval(STATE.clockInterval);
+
+  const sessionSec = Math.floor((STATE.clockOutTime - STATE.clockInTime) / 1000);
+  STATE.sessionWorkSec += sessionSec;
+  STATE.sessions.push({ in: STATE.clockInTime.toISOString(), out: STATE.clockOutTime.toISOString() });
+
+  // 総勤務時間 = 全セッション合計 - 手動休憩のみ（離席時間は含まない）
+  const totalWorkSec = STATE.sessionWorkSec - STATE.totalBreakSeconds;
+
+  // 日跨ぎ対応：退勤時刻表示
+  const baseDate = STATE.firstClockInTime || STATE.clockInTime;
+  const clockOutDisplay = fmtOvernight(STATE.clockOutTime, baseDate);
+  const isOvernight = STATE.clockOutTime.getDate() !== baseDate.getDate();
+
+  document.getElementById('clockOutTime').textContent = clockOutDisplay + (isOvernight ? '(+1)' : '');
+  document.getElementById('clockOutTime').classList.add('set');
+  // 現セッションのみの勤務時間
+  document.getElementById('workDuration').textContent = fmtSec(Math.max(0, sessionSec));
+  // 総勤務時間
+  document.getElementById('totalWorkDuration').textContent = fmtSec(Math.max(0, totalWorkSec));
+  document.getElementById('elapsedTime').textContent = fmtSec(Math.max(0, totalWorkSec));
+
+  if (todayRecord) {
+    todayRecord.clockOut = clockOutDisplay;
+    todayRecord.clockOutRaw = STATE.clockOutTime.toISOString();
+    todayRecord.workSec = Math.max(0, totalWorkSec);
+    todayRecord.breaks = STATE.breakCount;
+    todayRecord.totalBreakSec = STATE.totalBreakSeconds;
+    todayRecord.awaySec = STATE.totalAwaySeconds || 0;
+    todayRecord.pomodoros = STATE.pomodoroCount;
+    todayRecord.sessions = [...STATE.sessions];
+    todayRecord.overnight = isOvernight;
+    saveRecord(todayRecord);
+  }
+
+  updateUI();
+  renderRecords();
+
+  const sessions = STATE.sessions.length;
+  if (sessions > 1) {
+    notify(`👋 お疲れ様でした！本日${sessions}回出勤、総勤務時間 ${fmtSec(Math.max(0, totalWorkSec))}`, 'success');
+  } else {
+    notify('👋 お疲れ様でした！退勤しました。', 'success');
+  }
+}
+
+function startClock() {
+  clearInterval(STATE.clockInterval);
+  let saveTick = 0;
+  STATE.clockInterval = setInterval(() => {
+    if (!STATE.isWorking || !STATE.clockInTime) return;
+
+    // 手動休憩中の経過時間
+    const manualBreakSec = STATE.isOnBreak && STATE.breakStartTime
+      ? Math.floor((now() - STATE.breakStartTime) / 1000)
+      : 0;
+    // ポモドーロ休憩中の経過時間
+    const pomBreakSec = STATE.pomodoroBreaking && STATE.pomodoroBreakStart
+      ? Math.floor((now() - STATE.pomodoroBreakStart) / 1000)
+      : 0;
+
+    const currentSec = Math.floor((now() - STATE.clockInTime) / 1000);
+
+    // 現セッションの勤務時間（全休憩除く）
+    const sessionWorkSec = Math.max(0, currentSec - manualBreakSec - pomBreakSec);
+    // 総勤務時間（完了済み + 現セッション - 全休憩）
+    const totalWorkSec = Math.max(0, STATE.sessionWorkSec + currentSec - STATE.totalBreakSeconds - pomBreakSec - manualBreakSec);
+    // 累計休憩時間（確定済み + 現在進行中）
+    const totalBreakDisplay = STATE.totalBreakSeconds + manualBreakSec + pomBreakSec;
+
+    document.getElementById('workDuration').textContent = fmtSec(sessionWorkSec);
+    document.getElementById('elapsedTime').textContent = fmtSec(totalWorkSec);
+    document.getElementById('totalWorkDuration').textContent = fmtSec(totalWorkSec);
+    document.getElementById('breakDuration').textContent = fmtSec(totalBreakDisplay);
+    document.getElementById('totalBreakTime').textContent = fmtSec(totalBreakDisplay);
+    document.getElementById('totalBreakDuration').textContent = fmtSec(totalBreakDisplay);
+
+    // 休憩中の場合、現在の休憩時間を表示
+    if (STATE.isOnBreak && STATE.breakStartTime) {
+      document.getElementById('currentBreakTime').textContent = fmtSec(manualBreakSec);
+    } else if (STATE.pomodoroBreaking && STATE.pomodoroBreakStart) {
+      document.getElementById('currentBreakTime').textContent = fmtSec(pomBreakSec);
+    }
+
+    if (todayRecord) {
+      todayRecord.workSec = totalWorkSec;
+      todayRecord.totalBreakSec = totalBreakDisplay;
+      saveTick++;
+      if (saveTick >= 30) {
+        saveTick = 0;
+        saveRecord(todayRecord);
+      }
+    }
+  }, 1000);
+}
+
+// ── Break ──────────────────────────────────────────────────────────────────
+function startBreak() {
+  if (!STATE.isWorking || STATE.isOnBreak) return;
+
+  // ポモドーロを停止し、ポモドーロ休憩中だった場合は確定
+  if (STATE.pomodoroBreaking && STATE.pomodoroBreakStart) {
+    const pomBreakSec = Math.floor((now() - STATE.pomodoroBreakStart) / 1000);
+    STATE.totalBreakSeconds += pomBreakSec;
+    STATE.pomodoroBreaking = false;
+    STATE.pomodoroBreakStart = null;
+  }
+  clearInterval(STATE.pomodoroInterval);
+  STATE.pomodoroRunning = false;
+  // 作業モードにリセット
+  setMode('work');
+
+  STATE.isOnBreak = true;
+  STATE.breakStartTime = now();
+  STATE.breakCount++;
+  document.getElementById('breakStartTime').textContent = fmt(STATE.breakStartTime);
+  document.getElementById('breakCount').textContent = STATE.breakCount;
+  document.getElementById('currentBreakTime').textContent = '00:00:00';
+  updateUI();
+  notify('☕ 休憩を開始しました');
+}
+
+function endBreak() {
+  if (!STATE.isOnBreak) return;
+  const dur = Math.floor((now() - STATE.breakStartTime) / 1000);
+  STATE.totalBreakSeconds += dur;
+  STATE.isOnBreak = false;
+  STATE.breakStartTime = null;
+  document.getElementById('breakStartTime').textContent = '--:--:--';
+  document.getElementById('currentBreakTime').textContent = '00:00:00';
+  document.getElementById('totalBreakTime').textContent = fmtSec(STATE.totalBreakSeconds);
+  document.getElementById('breakDuration').textContent = fmtSec(STATE.totalBreakSeconds);
+  if (todayRecord) {
+    todayRecord.totalBreakSec = STATE.totalBreakSeconds;
+    todayRecord.breaks = STATE.breakCount;
+    saveRecord(todayRecord);
+  }
+  updateUI();
+
+  // ポモドーロを自動スタート
+  setMode('work');
+  STATE.pomodoroRunning = true;
+  document.getElementById('btnPomStart').textContent = '⏸ 一時停止';
+  STATE.pomodoroInterval = setInterval(tickPomodoro, 1000);
+
+  notify('✅ 休憩終了！ポモドーロを自動スタートしました 🍅', 'success');
+}
+
+// ── Pomodoro ───────────────────────────────────────────────────────────────
+const CIRCUMFERENCE = 2 * Math.PI * 82; // 515.2
+
+function setMode(mode) {
+  STATE.pomodoroMode = mode;
+  STATE.pomodoroRunning = false;
+  clearInterval(STATE.pomodoroInterval);
+  if (mode === 'work') {
+    STATE.pomodoroSeconds = 25 * 60;
+    STATE.pomodoroTotal = 25 * 60;
+    document.getElementById('modeWork').classList.add('active');
+    document.getElementById('modeBreak').classList.remove('active');
+    document.getElementById('timerPhase').textContent = '作業時間';
+    document.getElementById('timerProgress').classList.remove('break-mode');
+  } else {
+    STATE.pomodoroSeconds = 5 * 60;
+    STATE.pomodoroTotal = 5 * 60;
+    document.getElementById('modeWork').classList.remove('active');
+    document.getElementById('modeBreak').classList.add('active');
+    document.getElementById('timerPhase').textContent = '休憩時間';
+    document.getElementById('timerProgress').classList.add('break-mode');
+  }
+  document.getElementById('btnPomStart').textContent = '▶ スタート';
+  updateTimerDisplay();
+}
+
+function togglePomodoro() {
+  if (!STATE.isWorking) return;
+  if (STATE.pomodoroRunning) {
+    clearInterval(STATE.pomodoroInterval);
+    STATE.pomodoroRunning = false;
+    document.getElementById('btnPomStart').textContent = '▶ スタート';
+  } else {
+    STATE.pomodoroRunning = true;
+    document.getElementById('btnPomStart').textContent = '⏸ 一時停止';
+    STATE.pomodoroInterval = setInterval(tickPomodoro, 1000);
+  }
+}
+
+function tickPomodoro() {
+  STATE.pomodoroSeconds--;
+  updateTimerDisplay();
+  if (STATE.pomodoroSeconds <= 0) {
+    clearInterval(STATE.pomodoroInterval);
+    STATE.pomodoroRunning = false;
+    document.getElementById('btnPomStart').textContent = '▶ スタート';
+
+    if (STATE.pomodoroMode === 'work') {
+      // 作業完了 → 即座に休憩タイマー自動スタート
+      STATE.pomodoroCount++;
+      if (todayRecord) { todayRecord.pomodoros = STATE.pomodoroCount; saveRecord(todayRecord); }
+      renderPomodoroCount();
+      playSound('work');
+      notify('🍅 ポモドーロ完了！休憩タイマーを自動スタートします', 'success');
+      setMode('break');
+      // 休憩開始時刻を記録
+      STATE.pomodoroBreaking = true;
+      STATE.pomodoroBreakStart = now();
+      document.getElementById('currentBreakTime').textContent = '00:00:00';
+      // 即座に自動スタート
+      STATE.pomodoroRunning = true;
+      document.getElementById('btnPomStart').textContent = '⏸ 一時停止';
+      STATE.pomodoroInterval = setInterval(tickPomodoro, 1000);
+      updateUI();
+    } else {
+      // 休憩完了 → ポモドーロ休憩時間を確定して勤務時間に反映
+      if (STATE.pomodoroBreaking && STATE.pomodoroBreakStart) {
+        const pomBreakSec = Math.floor((now() - STATE.pomodoroBreakStart) / 1000);
+        STATE.totalBreakSeconds += pomBreakSec;
+        STATE.pomodoroBreaking = false;
+        STATE.pomodoroBreakStart = null;
+        document.getElementById('totalBreakTime').textContent = fmtSec(STATE.totalBreakSeconds);
+        document.getElementById('breakDuration').textContent = fmtSec(STATE.totalBreakSeconds);
+        document.getElementById('currentBreakTime').textContent = '00:00:00';
+      }
+      playSound('break');
+      notify('⚡ 休憩終了！作業タイマーを自動スタートします', 'warn');
+      setMode('work');
+      // 即座に自動スタート
+      STATE.pomodoroRunning = true;
+      document.getElementById('btnPomStart').textContent = '⏸ 一時停止';
+      STATE.pomodoroInterval = setInterval(tickPomodoro, 1000);
+      updateUI();
+    }
+  }
+}
+
+function resetPomodoro() {
+  clearInterval(STATE.pomodoroInterval);
+  STATE.pomodoroRunning = false;
+  document.getElementById('btnPomStart').textContent = '▶ スタート';
+  // ポモドーロ休憩中だった場合、経過分を勤務時間から除外して確定
+  if (STATE.pomodoroBreaking && STATE.pomodoroBreakStart) {
+    const pomBreakSec = Math.floor((now() - STATE.pomodoroBreakStart) / 1000);
+    STATE.totalBreakSeconds += pomBreakSec;
+    STATE.pomodoroBreaking = false;
+    STATE.pomodoroBreakStart = null;
+  }
+  STATE.pomodoroSeconds = STATE.pomodoroTotal;
+  updateTimerDisplay();
+}
+
+function skipPomodoro() {
+  clearInterval(STATE.pomodoroInterval);
+  STATE.pomodoroRunning = false;
+  document.getElementById('btnPomStart').textContent = '▶ スタート';
+  if (STATE.pomodoroMode === 'work') {
+    STATE.pomodoroCount++;
+    if (todayRecord) { todayRecord.pomodoros = STATE.pomodoroCount; saveRecord(todayRecord); }
+    renderPomodoroCount();
+    notify('⏭ スキップ → 休憩モードへ');
+    setMode('break');
+    STATE.pomodoroBreaking = true;
+    STATE.pomodoroBreakStart = now();
+    STATE.pomodoroRunning = true;
+    document.getElementById('btnPomStart').textContent = '⏸ 一時停止';
+    STATE.pomodoroInterval = setInterval(tickPomodoro, 1000);
+    updateUI();
+  } else {
+    // 休憩スキップ時も経過分を勤務時間から除外
+    if (STATE.pomodoroBreaking && STATE.pomodoroBreakStart) {
+      const pomBreakSec = Math.floor((now() - STATE.pomodoroBreakStart) / 1000);
+      STATE.totalBreakSeconds += pomBreakSec;
+      STATE.pomodoroBreaking = false;
+      STATE.pomodoroBreakStart = null;
+    }
+    notify('⏭ スキップ → 作業モードへ');
+    setMode('work');
+    STATE.pomodoroRunning = true;
+    document.getElementById('btnPomStart').textContent = '⏸ 一時停止';
+    STATE.pomodoroInterval = setInterval(tickPomodoro, 1000);
+    updateUI();
+  }
+}
+
+// ポモドーロタイマー専用 mm:ss 表記
+function fmtMS(s) {
+  const m = Math.floor(s / 60), sec = s % 60;
+  return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+
+function updateTimerDisplay() {
+  document.getElementById('timerDisplay').textContent = fmtMS(STATE.pomodoroSeconds);
+  const ratio = STATE.pomodoroSeconds / STATE.pomodoroTotal;
+  const offset = CIRCUMFERENCE * (1 - ratio);
+  document.getElementById('timerProgress').style.strokeDashoffset = offset;
+}
+
+function renderPomodoroCount() {
+  const el = document.getElementById('pomodoroCount');
+  const max = Math.max(4, STATE.pomodoroCount + 1);
+  el.innerHTML = '';
+  for (let i = 0; i < max; i++) {
+    const d = document.createElement('div');
+    d.className = 'pomo-dot' + (i < STATE.pomodoroCount ? ' done' : '');
+    el.appendChild(d);
+  }
+}
+
+// ── UI Update ──────────────────────────────────────────────────────────────
+function updateUI() {
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+
+  dot.className = 'status-dot';
+  if (!STATE.isWorking && !STATE.clockOutTime) {
+    text.textContent = '未出勤';
+  } else if (!STATE.isWorking && STATE.clockOutTime) {
+    dot.classList.add('break');
+    text.textContent = '離席中（再出勤できます）';
+  } else if (STATE.isOnBreak) {
+    dot.classList.add('break');
+    text.textContent = '休憩中';
+  } else if (STATE.pomodoroRunning) {
+    dot.classList.add('pomodoro');
+    if (STATE.pomodoroMode === 'work') {
+      text.textContent = '🍅 ポモドーロ作業中';
+    } else {
+      text.textContent = '🍅 ポモドーロ休憩中（勤務時間外）';
+    }
+  } else {
+    dot.classList.add('working');
+    text.textContent = STATE.sessions.length > 0
+      ? `勤務中（本日${STATE.sessions.length + 1}回目）`
+      : '勤務中';
+  }
+
+  // 退勤後も同日なら出勤ボタンを押せる
+  const todayStr = fmtDate(now());
+  const isTodayRecord = todayRecord && todayRecord.date === todayStr;
+  document.getElementById('btnClockIn').disabled = STATE.isWorking;
+  document.getElementById('btnClockOut').disabled = !STATE.isWorking;
+  document.getElementById('btnBreakStart').disabled = !STATE.isWorking || STATE.isOnBreak;
+  document.getElementById('btnBreakEnd').disabled = !STATE.isOnBreak;
+  document.getElementById('btnPomStart').disabled = !STATE.isWorking || STATE.isOnBreak;
+  document.getElementById('btnPomSkip').disabled = !STATE.isWorking;
+}
+
+// ── Header Clock ───────────────────────────────────────────────────────────
+function updateHeader() {
+  const d = now();
+  const days = ['日','月','火','水','木','金','土'];
+  document.getElementById('headerDate').innerHTML =
+    `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${days[d.getDay()]}）<br>` +
+    `<span style="font-size:15px;color:var(--text)">${d.toTimeString().slice(0,8)}</span>`;
+}
+
+// ── Records Render ─────────────────────────────────────────────────────────
+function renderRecords() {
+  const key = monthKey(now());
+  document.getElementById('recordMonth').textContent = key.replace('-', '年') + '月';
+  const all = getRecords();
+  const list = (all[key] || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+  const el = document.getElementById('recordsList');
+  if (!list.length) { el.innerHTML = '<div class="records-empty">記録がありません</div>'; return; }
+
+  // ヘッダー行
+  let html = `
+    <div class="record-header-row">
+      <span>日付</span>
+      <span>出勤時刻</span>
+      <span>退勤時刻</span>
+      <span>勤務時間</span>
+      <span>総勤務時間</span>
+      <span>休憩時間</span>
+    </div>`;
+
+  list.forEach((r, idx) => {
+    const sessions = r.sessions && r.sessions.length > 1 ? r.sessions : null;
+    const breakStr = r.totalBreakSec ? fmtSec(r.totalBreakSec) : '00:00:00';
+
+    if (!sessions) {
+      html += `
+        <div class="record-item record-single">
+          <span class="record-date">${r.date.slice(5)}</span>
+          <span class="record-time">▶ ${r.clockIn || '--:--:--'}</span>
+          <span class="record-time">${r.clockOut ? '■ ' + r.clockOut : '<span style="color:var(--success)">勤務中</span>'}</span>
+          <span class="record-duration">${r.workSec ? fmtSec(r.workSec) : '--:--:--'}</span>
+          <span class="record-duration">${r.workSec ? fmtSec(r.workSec) : '--:--:--'}</span>
+          <span class="record-duration" style="color:var(--warning)">${breakStr}</span>
+        </div>`;
+    } else {
+      const groupId = `rg-${idx}`;
+      const sessionRows = sessions.map((s, i) => {
+        const inTime = new Date(s.in);
+        const outTime = new Date(s.out);
+        const secDiff = Math.floor((outTime - inTime) / 1000);
+        return `
+          <div class="record-session-row">
+            <span class="record-session-label">${i + 1}回目</span>
+            <span style="font-family:'Space Mono',monospace;font-size:11px">▶ ${fmt(inTime)}</span>
+            <span style="font-family:'Space Mono',monospace;font-size:11px">■ ${fmt(outTime)}</span>
+            <span class="record-duration" style="font-size:11px">${fmtSec(secDiff)}</span>
+            <span class="record-duration" style="font-size:11px;color:var(--text-dim)">—</span>
+            <span class="record-duration" style="font-size:11px;color:var(--text-dim)">—</span>
+          </div>`;
+      }).join('');
+
+      html += `
+        <div class="record-group">
+          <div class="record-group-header" onclick="toggleRecordGroup('${groupId}')">
+            <span class="record-date">${r.date.slice(5)}</span>
+            <span style="font-size:11px;color:var(--text-dim)">${sessions.length}回出勤 <span class="expand-icon" id="${groupId}-icon">▼</span></span>
+            <span></span>
+            <span></span>
+            <span class="record-duration">${r.workSec ? fmtSec(r.workSec) : '--:--:--'}</span>
+            <span class="record-duration" style="color:var(--warning)">${breakStr}</span>
+          </div>
+          <div class="record-sessions" id="${groupId}">
+            ${sessionRows}
+          </div>
+        </div>`;
+    }
+  });
+  el.innerHTML = html;
+}
+
+function toggleRecordGroup(groupId) {
+  const sessions = document.getElementById(groupId);
+  const header = sessions.previousElementSibling;
+  const icon = document.getElementById(groupId + '-icon');
+  const isOpen = sessions.classList.contains('open');
+  sessions.classList.toggle('open', !isOpen);
+  header.classList.toggle('open', !isOpen);
+  if (icon) icon.style.transform = isOpen ? '' : 'rotate(180deg)';
+}
+
+// ── XLSX Export ────────────────────────────────────────────────────────────
+function exportXlsx() {
+  const all = getRecords();
+  if (!Object.keys(all).length) { notify('⚠ エクスポートするデータがありません'); return; }
+  const wb = XLSX.utils.book_new();
+
+  const sortedKeys = Object.keys(all).sort();
+  sortedKeys.forEach(key => {
+    const rows = all[key];
+    const [y, m] = key.split('-');
+    const sheetName = `${y}年${m}月`;
+    const data = [
+      ['日付', '出勤時刻', '退勤時刻', '勤務時間', '休憩回数', '休憩合計', 'ポモドーロ数'],
+      ...rows.map(r => [
+        r.date,
+        r.clockIn || '',
+        r.clockOut || '',
+        r.workSec ? fmtSec(r.workSec) : '',
+        r.breaks || 0,
+        r.totalBreakSec ? fmtSec(r.totalBreakSec) : '00:00',
+        r.pomodoros || 0,
+      ])
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+
+    // Column widths
+    ws['!cols'] = [
+      {wch:12},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:14}
+    ];
+
+    // Header style (xlsx.js basic)
+    const headerRow = ['A1','B1','C1','D1','E1','F1','G1'];
+    headerRow.forEach(cell => {
+      if (ws[cell]) {
+        ws[cell].s = {
+          font: { bold: true },
+          fill: { fgColor: { rgb: '7C6AF7' } },
+          alignment: { horizontal: 'center' }
+        };
+      }
+    });
+
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  });
+
+  XLSX.writeFile(wb, `勤怠記録.xlsx`);
+  notify('📥 .xlsxファイルをダウンロードしました', 'success');
+}
+
+// ── Page Navigation ────────────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  const idx = name === 'home' ? 0 : 1;
+  document.querySelectorAll('.nav-tab')[idx].classList.add('active');
+  if (name === 'report') renderReport();
+}
+
+// ── Report ─────────────────────────────────────────────────────────────────
+let reportYear = now().getFullYear();
+let reportMonth = now().getMonth() + 1; // 1-12
+
+function reportPrevMonth() {
+  reportMonth--;
+  if (reportMonth < 1) { reportMonth = 12; reportYear--; }
+  renderReport();
+}
+function reportNextMonth() {
+  reportMonth++;
+  if (reportMonth > 12) { reportMonth = 1; reportYear++; }
+  renderReport();
+}
+
+function renderReport() {
+  const key = `${reportYear}-${String(reportMonth).padStart(2,'0')}`;
+  document.getElementById('reportMonthLabel').textContent = `${reportYear}年 ${reportMonth}月`;
+
+  const all = getRecords();
+  const monthData = all[key] || [];
+  const byDate = {};
+  monthData.forEach(r => { byDate[r.date] = r; });
+
+  const daysInMonth = new Date(reportYear, reportMonth, 0).getDate();
+  const todayStr = fmtDate(now());
+  const days = ['日','月','火','水','木','金','土'];
+
+  // Summary (only completed records)
+  const worked = monthData.filter(r => r.clockOut);
+  const totalWorkSec = worked.reduce((s, r) => s + (r.workSec || 0), 0);
+  const avgSec = worked.length ? Math.floor(totalWorkSec / worked.length) : 0;
+  const totalPomos = monthData.reduce((s, r) => s + (r.pomodoros || 0), 0);
+
+  document.getElementById('sumWorkDays').textContent = worked.length;
+  document.getElementById('sumTotalHours').textContent = fmtHM(totalWorkSec);
+  document.getElementById('sumAvgHours').textContent = fmtHM(avgSec);
+  document.getElementById('sumPomodoros').textContent = totalPomos;
+
+  // Bar chart
+  const maxSec = Math.max(...monthData.map(r => r.workSec || 0), 1);
+  const chartEl = document.getElementById('reportBarChart');
+  chartEl.innerHTML = '';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${reportYear}/${String(reportMonth).padStart(2,'0')}/${String(d).padStart(2,'0')}`;
+    const rec = byDate[dateStr];
+    const sec = rec ? (rec.workSec || 0) : 0;
+    const heightPct = sec ? Math.max(4, Math.round((sec / maxSec) * 100)) : 0;
+    const isToday = dateStr === todayStr;
+    const isManual = rec && rec.manual;
+    const col = document.createElement('div');
+    col.className = 'bar-col';
+    col.title = `${reportMonth}/${d}: ${sec ? fmtHM(sec) : '—'}${isManual ? ' (手動編集)' : ''}`;
+    const fill = document.createElement('div');
+    fill.className = 'bar-fill' + (isToday ? ' today-bar' : '') + (isManual ? ' manual-bar' : '');
+    fill.style.height = heightPct + '%';
+    const lbl = document.createElement('div');
+    lbl.className = 'bar-label';
+    lbl.textContent = d % 5 === 1 ? String(d) : '';
+    col.appendChild(fill);
+    col.appendChild(lbl);
+    chartEl.appendChild(col);
+  }
+
+  // Table
+  const tbody = document.getElementById('reportTableBody');
+  let rows = '';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateObj = new Date(reportYear, reportMonth - 1, d);
+    const dow = dateObj.getDay();
+    const dateStr = `${reportYear}/${String(reportMonth).padStart(2,'0')}/${String(d).padStart(2,'0')}`;
+    const rec = byDate[dateStr];
+    const isToday = dateStr === todayStr;
+    const isWeekend = dow === 0 || dow === 6;
+    const isManual = rec && rec.manual;
+
+    let cls = '';
+    if (isToday) cls += ' today-row';
+    if (isWeekend) cls += ' weekend';
+    if (rec) cls += ' has-data';
+    if (isManual) cls += ' manual-row';
+
+    // day label uses inner span for ::after marker
+    const manualBadge = isManual ? '<span class="badge-manual">手動</span>' : '';
+    const dayLabel = `<span class="day-label-inner">${String(d).padStart(2,'0')} (${days[dow]})</span>${manualBadge}`;
+
+    if (!rec) {
+      rows += `<tr class="${cls}" onclick="openEditModal('${dateStr}')">
+        <td>${dayLabel}</td>
+        <td class="empty-cell">—</td>
+        <td class="empty-cell">—</td>
+        <td class="empty-cell">—</td>
+        <td class="empty-cell">—</td>
+        <td class="empty-cell">—</td>
+      </tr>`;
+    } else {
+      const workCell = rec.workSec
+        ? `<span class="work-bar">
+            <span class="work-bar-fill" style="width:${Math.round((rec.workSec/28800)*60)}px"></span>
+            ${fmtHM(rec.workSec)}
+           </span>`
+        : '<span class="empty-cell">—</span>';
+      const ongoingBadge = !rec.clockOut ? ' <span class="badge badge-ongoing">進行中</span>' : '';
+      rows += `<tr class="${cls}" onclick="openEditModal('${dateStr}')">
+        <td>${dayLabel}</td>
+        <td>${rec.clockIn || '<span class="empty-cell">—</span>'}</td>
+        <td>${rec.clockOut || '<span class="empty-cell">—</span>'}${ongoingBadge}</td>
+        <td>${workCell}</td>
+        <td>${rec.breaks ?? '<span class="empty-cell">0</span>'}</td>
+        <td>${rec.pomodoros ?? '<span class="empty-cell">0</span>'}</td>
+      </tr>`;
+    }
+  }
+  tbody.innerHTML = rows;
+}
+
+// 月次レポート用 hh:mm:ss 表記
+function fmtHM(sec) {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+// ── Google Sheets API ──────────────────────────────────────────────────────
+// ▼▼▼ ここにGoogle Cloud ConsoleのクライアントIDとAPIキーを入力してください ▼▼▼
+const GS_CLIENT_ID = '677174988738-nsld7okqc4t9jds39s0247mvgi2jshk3.apps.googleusercontent.com';
+const GS_API_KEY   = 'AIzaSyC2iLMQMnmQ17Gk4eEP2fpDF-OZWdkiIy4';
+// ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
+const GS_SCOPES    = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
+const GS_SHEET_KEY = 'kinkan_spreadsheet_id';
+
+let gsTokenClient   = null;
+let gsAccessToken   = null;
+let gsSpreadsheetId = localStorage.getItem(GS_SHEET_KEY) || null;
+let syncWriteTimer  = null;
+let gapiReady       = false;
+let gsiReady        = false;
+
+// ── Google API loading（ポーリング方式）────────────────────────────────────
+
+// gapiとgoogle.accounts両方が使えるようになるまで待つ
+let _waitStarted = false;
+function waitForApis() {
+  if (_waitStarted) return;
+  _waitStarted = true;
+  const check = () => {
+    const gapiOk = typeof gapi !== 'undefined' && typeof gapi.load === 'function';
+    const gsiOk  = typeof google !== 'undefined' && google.accounts && google.accounts.oauth2;
+    if (gapiOk && gsiOk) {
+      initGapi();
+    } else {
+      setTimeout(check, 300);
+    }
+  };
+  check();
+}
+
+function initGapi() {
+  gapi.load('client', async () => {
+    try {
+      await gapi.client.init({
+        apiKey: GS_API_KEY,
+        discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4'],
+      });
+    } catch(e) {
+      // discovery失敗は無視（APIキー未設定時など）
+    }
+    gapiReady = true;
+
+    gsTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GS_CLIENT_ID,
+      scope: GS_SCOPES,
+      callback: onTokenResponse,
+    });
+    gsiReady = true;
+
+    // ローディング通知を消す
+    const notifEl = document.getElementById('notification');
+    if (notifEl && notifEl.textContent.includes('読み込み中')) {
+      notifEl.classList.remove('show');
+    }
+
+    setSyncStatus('', 'Googleアカウントでログインして同期します');
+    updateGsBanner();
+    document.getElementById('btnExcelLink').textContent = '🔑 Googleログイン（準備完了）';
+
+    // 保存済みトークンで自動復元
+    const saved = localStorage.getItem('kinkan_gs_token');
+    if (saved && gsSpreadsheetId) {
+      gsAccessToken = saved;
+      gapi.client.setToken({ access_token: saved });
+      updateGsBanner();
+      gsReadSheet();
+    }
+  });
+}
+
+function onTokenResponse(resp) {
+  if (resp.error) {
+    setSyncStatus('error', 'ログインエラー: ' + resp.error);
+    return;
+  }
+  gsAccessToken = resp.access_token;
+  localStorage.setItem('kinkan_gs_token', gsAccessToken);
+  gapi.client.setToken({ access_token: gsAccessToken });
+  updateGsBanner();
+  if (gsSpreadsheetId) {
+    gsReadSheet();
+  } else {
+    setSyncStatus('', 'ログイン済み — 「＋ 新規作成」でスプレッドシートを作成してください');
+    document.getElementById('btnExcelNew').style.display = '';
+  }
+}
+
+// ── Auth ───────────────────────────────────────────────────────────────────
+function gsLogin() {
+  if (!gsiReady || !gsTokenClient) {
+    // APIがまだ読み込み中 — 少し待って自動リトライ
+    setSyncStatus('writing', 'Google API読み込み中… しばらくお待ちください');
+    setTimeout(() => {
+      if (gsiReady && gsTokenClient) {
+        gsLogin();
+      } else {
+        setSyncStatus('error', '読み込みに失敗しました。ページを再読み込みしてください（F5）');
+      }
+    }, 2000);
+    return;
+  }
+  gsTokenClient.requestAccessToken({ prompt: gsAccessToken ? '' : 'consent' });
+}
+
+function gsLogout() {
+  if (gsAccessToken) google.accounts.oauth2.revoke(gsAccessToken, () => {});
+  gsAccessToken = null;
+  gsSpreadsheetId = null;
+  localStorage.removeItem('kinkan_gs_token');
+  localStorage.removeItem(GS_SHEET_KEY);
+  gapi.client.setToken(null);
+
+  // STATEをリセット
+  clearInterval(STATE.clockInterval);
+  clearInterval(STATE.pomodoroInterval);
+  STATE.isWorking = false;
+  STATE.clockInTime = null;
+  STATE.clockOutTime = null;
+  STATE.firstClockInTime = null;
+  STATE.isOnBreak = false;
+  STATE.breakStartTime = null;
+  STATE.breakCount = 0;
+  STATE.totalBreakSeconds = 0;
+  STATE.totalAwaySeconds = 0;
+  STATE.sessions = [];
+  STATE.sessionWorkSec = 0;
+  STATE.pomodoroRunning = false;
+  STATE.pomodoroBreaking = false;
+  STATE.pomodoroBreakStart = null;
+  STATE.pomodoroCount = 0;
+  todayRecord = null;
+
+  // UIをリセット
+  document.getElementById('clockInTime').textContent = '--:--:--';
+  document.getElementById('clockInTime').classList.remove('set');
+  document.getElementById('clockOutTime').textContent = '--:--:--';
+  document.getElementById('clockOutTime').classList.remove('set');
+  document.getElementById('workDuration').textContent = '--:--:--';
+  document.getElementById('totalWorkDuration').textContent = '--:--:--';
+  document.getElementById('elapsedTime').textContent = '--:--:--';
+  document.getElementById('breakCount').textContent = '0';
+  document.getElementById('totalBreakTime').textContent = '00:00:00';
+  document.getElementById('currentBreakTime').textContent = '00:00:00';
+  document.getElementById('breakDuration').textContent = '00:00:00';
+  document.getElementById('totalBreakDuration').textContent = '00:00:00';
+  document.getElementById('breakStartTime').textContent = '--:--:--';
+  setMode('work');
+  renderPomodoroCount();
+  renderRecords();
+  updateUI();
+  updateGsBanner();
+  notify('Googleアカウントからログアウトしました');
+}
+
+// ── Spreadsheet: create ────────────────────────────────────────────────────
+async function gsCreateSheet() {
+  if (!gsAccessToken) { gsLogin(); return; }
+  try {
+    setSyncStatus('writing', 'スプレッドシート作成中…');
+    const title = `KINKAN 勤怠記録`;
+    const res = await gapi.client.sheets.spreadsheets.create({
+      resource: { properties: { title } },
+    });
+    gsSpreadsheetId = res.result.spreadsheetId;
+    localStorage.setItem(GS_SHEET_KEY, gsSpreadsheetId);
+    updateGsBanner();
+    await gsWriteSheet();
+    notify('✅ スプレッドシートを作成しました', 'success');
+  } catch(e) {
+    setSyncStatus('error', '作成エラー: ' + e.message);
+    console.error(e);
+  }
+}
+
+// ── Spreadsheet: read ──────────────────────────────────────────────────────
+async function gsReadSheet() {
+  if (!gsAccessToken || !gsSpreadsheetId) return;
+  try {
+    setSyncStatus('writing', '読み込み中…');
+    // Get sheet metadata
+    const meta = await gapi.client.sheets.spreadsheets.get({ spreadsheetId: gsSpreadsheetId });
+    const sheets = meta.result.sheets.map(s => s.properties.title);
+    const all = getRecords();
+
+    for (const sheetName of sheets) {
+      const match = sheetName.match(/(\d{4})年(\d{1,2})月/);
+      if (!match) continue;
+      const key = `${match[1]}-${String(match[2]).padStart(2,'0')}`;
+      const resp = await gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId: gsSpreadsheetId,
+        range: `'${sheetName}'!A:I`,
+      });
+      const rows = resp.result.values || [];
+      if (rows.length < 2) continue;
+      // rows[0]=header, rows[1+]=data
+      // columns: 日付,曜日,出勤,退勤,勤務時間,休憩回数,休憩合計,ポモドーロ,手動
+      const records = [];
+      for (let i = 1; i < rows.length; i++) {
+        const [date,,clockIn,clockOut,workTime,breaks,,pomodoros,manualFlag] = rows[i];
+        if (!date || !clockIn) continue;
+        records.push({
+          date,
+          clockIn: clockIn || null,
+          clockOut: clockOut || null,
+          workSec: parseHMtoSec(workTime),
+          breaks: Number(breaks) || 0,
+          totalBreakSec: 0,
+          pomodoros: Number(pomodoros) || 0,
+          manual: manualFlag === 'TRUE',
+        });
+      }
+      const existing = all[key] || [];
+      records.forEach(xr => {
+        const idx = existing.findIndex(r => r.date === xr.date);
+        if (idx >= 0) { if (xr.clockOut) existing[idx] = { ...existing[idx], ...xr }; }
+        else existing.push(xr);
+      });
+      all[key] = existing;
+    }
+
+    localStorage.setItem(RECORDS_KEY, JSON.stringify(all));
+    setSyncStatus('ok', `読み込み完了 ${fmt(now())}`);
+    renderRecords();
+    if (document.getElementById('page-report').classList.contains('active')) renderReport();
+  } catch(e) {
+    if (e.status === 401) {
+      // Token expired — re-auth silently
+      setSyncStatus('', 'セッション期限切れ — 再ログインしてください');
+      gsAccessToken = null;
+      localStorage.removeItem('kinkan_gs_token');
+      updateGsBanner();
+    } else {
+      setSyncStatus('error', '読み込みエラー: ' + (e.result?.error?.message || e.message));
+    }
+    console.error(e);
+  }
+}
+
+// ── Spreadsheet: write (debounced) ─────────────────────────────────────────
+function scheduleWrite() {
+  if (!gsAccessToken || !gsSpreadsheetId) return;
+  clearTimeout(syncWriteTimer);
+  syncWriteTimer = setTimeout(gsWriteSheet, 2000);
+}
+
+async function gsWriteSheet() {
+  if (!gsAccessToken || !gsSpreadsheetId) return;
+  try {
+    setSyncStatus('writing', '同期中…');
+    const all = getRecords();
+    const sortedKeys = Object.keys(all).sort();
+    if (!sortedKeys.length) { setSyncStatus('ok', '同期済み'); return; }
+
+    // Get existing sheet names
+    const meta = await gapi.client.sheets.spreadsheets.get({ spreadsheetId: gsSpreadsheetId });
+    const existingSheets = meta.result.sheets.map(s => ({ title: s.properties.title, id: s.properties.sheetId }));
+
+    const DAYS = ['日','月','火','水','木','金','土'];
+    const requests = [];
+    const valueUpdates = [];
+
+    for (const key of sortedKeys) {
+      const [y, m] = key.split('-');
+      const sheetName = `${y}年${m}月`;
+      const daysInMonth = new Date(Number(y), Number(m), 0).getDate();
+      const byDate = {};
+      (all[key] || []).forEach(r => { byDate[r.date] = r; });
+
+      // Create sheet if not exists
+      const existing = existingSheets.find(s => s.title === sheetName);
+      if (!existing) {
+        requests.push({ addSheet: { properties: { title: sheetName } } });
+      }
+
+      // Build rows: header + all days
+      const header = ['日付','曜日','出勤時刻','退勤時刻','勤務時間','休憩回数','休憩合計','ポモドーロ数','手動編集'];
+      const dataRows = [header];
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${y}/${m}/${String(d).padStart(2,'0')}`;
+        const dow = new Date(Number(y), Number(m)-1, d).getDay();
+        const r = byDate[dateStr];
+        if (r && r.clockIn) {
+          dataRows.push([
+            dateStr, DAYS[dow],
+            r.clockIn || '', r.clockOut || '',
+            r.workSec ? fmtSec(r.workSec) : '',
+            r.breaks || 0,
+            r.totalBreakSec ? fmtSec(r.totalBreakSec) : '',
+            r.pomodoros || 0,
+            r.manual ? 'TRUE' : 'FALSE',
+          ]);
+        } else {
+          dataRows.push([dateStr, DAYS[dow], '', '', '', '', '', '', '']);
+        }
+      }
+
+      valueUpdates.push({ range: `'${sheetName}'!A1`, values: dataRows });
+    }
+
+    // Execute sheet creation requests first
+    if (requests.length) {
+      await gapi.client.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: gsSpreadsheetId,
+        resource: { requests },
+      });
+    }
+
+    // Write values
+    await gapi.client.sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: gsSpreadsheetId,
+      resource: { valueInputOption: 'USER_ENTERED', data: valueUpdates },
+    });
+
+    // Add bar chart to each sheet (after data is written)
+    // Re-fetch sheet IDs after possible creation
+    const metaAfter = await gapi.client.sheets.spreadsheets.get({ spreadsheetId: gsSpreadsheetId });
+    const sheetMap = {};
+    metaAfter.result.sheets.forEach(s => { sheetMap[s.properties.title] = s.properties.sheetId; });
+
+    const chartRequests = [];
+    for (const key of sortedKeys) {
+      const [y, m] = key.split('-');
+      const sheetName = `${y}年${m}月`;
+      const sheetId = sheetMap[sheetName];
+      if (sheetId == null) continue;
+      const daysInMonth = new Date(Number(y), Number(m), 0).getDate();
+      // データ行: 2行目(index1)〜 daysInMonth+1行目
+      // 勤務時間列はE列(index4)
+      chartRequests.push({
+        addChart: {
+          chart: {
+            spec: {
+              title: `${y}年${m}月 日別勤務時間`,
+              basicChart: {
+                chartType: 'COLUMN',
+                legendPosition: 'BOTTOM_LEGEND',
+                axis: [
+                  { position: 'BOTTOM_AXIS', title: '日付' },
+                  { position: 'LEFT_AXIS', title: '勤務時間' },
+                ],
+                domains: [{
+                  domain: {
+                    sourceRange: {
+                      sources: [{
+                        sheetId,
+                        startRowIndex: 1, endRowIndex: daysInMonth + 1,
+                        startColumnIndex: 0, endColumnIndex: 1,
+                      }],
+                    },
+                  },
+                }],
+                series: [{
+                  series: {
+                    sourceRange: {
+                      sources: [{
+                        sheetId,
+                        startRowIndex: 1, endRowIndex: daysInMonth + 1,
+                        startColumnIndex: 4, endColumnIndex: 5,
+                      }],
+                    },
+                  },
+                  targetAxis: 'LEFT_AXIS',
+                }],
+              },
+            },
+            position: {
+              overlayPosition: {
+                anchorCell: {
+                  sheetId,
+                  rowIndex: daysInMonth + 2,
+                  columnIndex: 0,
+                },
+                widthPixels: 600,
+                heightPixels: 320,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    // 既存グラフを一度削除してから再追加（重複防止）
+    const existingCharts = metaAfter.result.sheets
+      .filter(s => sheetMap[s.properties.title] != null)
+      .flatMap(s => (s.charts || []).map(c => ({
+        deleteEmbeddedObject: { objectId: c.chartId },
+      })));
+
+    const allChartRequests = [...existingCharts, ...chartRequests];
+    if (allChartRequests.length) {
+      await gapi.client.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: gsSpreadsheetId,
+        resource: { requests: allChartRequests },
+      });
+    }
+
+    setSyncStatus('ok', `同期済み ${fmt(now())}`);
+  } catch(e) {
+    if (e.status === 401) {
+      setSyncStatus('', 'セッション期限切れ — 再ログインしてください');
+      gsAccessToken = null;
+      localStorage.removeItem('kinkan_gs_token');
+      updateGsBanner();
+    } else {
+      setSyncStatus('error', '書き込みエラー: ' + (e.result?.error?.message || e.message));
+    }
+    console.error(e);
+  }
+}
+
+// ── Chart PNG download ────────────────────────────────────────────────────
+function downloadChartPng() {
+  const all = getRecords();
+  const key = `${reportYear}-${String(reportMonth).padStart(2,'0')}`;
+  const monthData = all[key] || [];
+  const byDate = {};
+  monthData.forEach(r => { byDate[r.date] = r; });
+  const daysInMonth = new Date(reportYear, reportMonth, 0).getDate();
+
+  const labels = [];
+  const values = [];
+  const DAYS = ['日','月','火','水','木','金','土'];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${reportYear}/${String(reportMonth).padStart(2,'0')}/${String(d).padStart(2,'0')}`;
+    const dow = new Date(reportYear, reportMonth-1, d).getDay();
+    labels.push(`${d}(${DAYS[dow]})`);
+    const r = byDate[dateStr];
+    values.push(r ? Math.round((r.workSec || 0) / 3600 * 10) / 10 : 0);
+  }
+
+  const W = Math.max(800, daysInMonth * 28);
+  const H = 320;
+  const PAD = { top: 40, right: 20, bottom: 60, left: 56 };
+  const chartW = W - PAD.left - PAD.right;
+  const chartH = H - PAD.top - PAD.bottom;
+  const maxVal = Math.max(...values, 1);
+
+  const canvas = document.getElementById('reportChartCanvas');
+  canvas.width = W;
+  canvas.height = H;
+  canvas.style.display = 'none';
+
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#16161d';
+  ctx.fillRect(0, 0, W, H);
+
+  // Title
+  ctx.fillStyle = '#e8e8f0';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${reportYear}年${reportMonth}月 日別勤務時間`, W / 2, 22);
+
+  // Grid lines
+  const gridCount = 4;
+  ctx.strokeStyle = '#2a2a38';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= gridCount; i++) {
+    const y = PAD.top + chartH - (i / gridCount) * chartH;
+    ctx.beginPath();
+    ctx.moveTo(PAD.left, y);
+    ctx.lineTo(PAD.left + chartW, y);
+    ctx.stroke();
+    const label = Math.round(maxVal * i / gridCount * 10) / 10;
+    ctx.fillStyle = '#7070a0';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(label + 'h', PAD.left - 6, y + 4);
+  }
+
+  // Bars
+  const barW = Math.max(4, chartW / daysInMonth - 3);
+  const todayStr = fmtDate(now());
+  for (let i = 0; i < daysInMonth; i++) {
+    const x = PAD.left + (i / daysInMonth) * chartW + (chartW / daysInMonth - barW) / 2;
+    const barH = values[i] ? Math.max(2, (values[i] / maxVal) * chartH) : 0;
+    const y = PAD.top + chartH - barH;
+    const dateStr = `${reportYear}/${String(reportMonth).padStart(2,'0')}/${String(i+1).padStart(2,'0')}`;
+    const isToday = dateStr === todayStr;
+    const r = byDate[dateStr];
+    const isManual = r && r.manual;
+    ctx.fillStyle = isToday ? '#6af7a8' : isManual ? '#f7d46a' : '#7c6af7';
+    ctx.beginPath();
+    ctx.roundRect(x, y, barW, barH, [2, 2, 0, 0]);
+    ctx.fill();
+    // Label
+    if (values[i] > 0) {
+      ctx.fillStyle = '#e8e8f0';
+      ctx.font = '9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(values[i] + 'h', x + barW / 2, y - 3);
+    }
+  }
+
+  // X axis labels
+  ctx.fillStyle = '#7070a0';
+  ctx.font = '9px sans-serif';
+  ctx.textAlign = 'center';
+  for (let i = 0; i < daysInMonth; i++) {
+    if ((i + 1) % 5 === 1 || i === 0) {
+      const x = PAD.left + (i / daysInMonth) * chartW + chartW / daysInMonth / 2;
+      ctx.fillText(labels[i], x, PAD.top + chartH + 16);
+    }
+  }
+
+  // Legend
+  const legendY = H - 14;
+  const legendItems = [
+    { color: '#7c6af7', label: '通常' },
+    { color: '#6af7a8', label: '今日' },
+    { color: '#f7d46a', label: '手動編集' },
+  ];
+  let lx = PAD.left;
+  legendItems.forEach(item => {
+    ctx.fillStyle = item.color;
+    ctx.fillRect(lx, legendY - 8, 12, 8);
+    ctx.fillStyle = '#7070a0';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(item.label, lx + 16, legendY);
+    lx += 72;
+  });
+
+  // Download
+  const link = document.createElement('a');
+  link.download = `KINKAN_${reportYear}年${reportMonth}月_勤務時間.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+  notify('📥 グラフをPNGで保存しました', 'success');
+}
+function updateGsBanner() {
+  const banner   = document.getElementById('excelBanner');
+  const nameEl   = document.getElementById('excelFileName');
+  const btnLogin = document.getElementById('btnExcelLink');
+  const btnNew   = document.getElementById('btnExcelNew');
+  const btnOut   = document.getElementById('btnExcelUnlink');
+  if (!banner) return;
+
+  if (gsAccessToken && gsSpreadsheetId) {
+    banner.className = 'excel-banner linked';
+    const sheetUrl = `https://docs.google.com/spreadsheets/d/${gsSpreadsheetId}/edit`;
+    nameEl.innerHTML = `Google Sheets 連携中 &nbsp;<a href="${sheetUrl}" target="_blank" style="font-size:11px;color:var(--success);text-decoration:none;border:1px solid rgba(106,247,168,0.3);border-radius:5px;padding:2px 8px;" title="スプレッドシートを開く">📋 開く</a>`;
+    btnLogin.style.display = 'none';
+    btnNew.style.display   = 'none';
+    btnOut.style.display   = '';
+  } else if (gsAccessToken && !gsSpreadsheetId) {
+    banner.className = 'excel-banner unlinked';
+    nameEl.textContent = 'Google Sheets — スプレッドシート未作成';
+    btnLogin.style.display = 'none';
+    btnNew.style.display   = '';
+    btnOut.style.display   = '';
+  } else {
+    banner.className = 'excel-banner unlinked';
+    nameEl.textContent = 'Google Sheets 未連携';
+    btnLogin.style.display = '';
+    btnNew.style.display   = 'none';
+    btnOut.style.display   = 'none';
+    setSyncStatus('', 'Googleアカウントでログインして同期します');
+  }
+}
+
+// exportXlsx is still available as a local backup download
+function exportXlsx() {
+  const all = getRecords();
+  if (!Object.keys(all).length) { notify('⚠ エクスポートするデータがありません'); return; }
+  const wb = XLSX.utils.book_new();
+  const DAYS = ['日','月','火','水','木','金','土'];
+  Object.keys(all).sort().forEach(key => {
+    const [y, m] = key.split('-');
+    const sheetName = `${y}年${m}月`;
+    const daysInMonth = new Date(Number(y), Number(m), 0).getDate();
+    const byDate = {};
+    (all[key] || []).forEach(r => { byDate[r.date] = r; });
+    const header = ['日付','曜日','出勤時刻','退勤時刻','勤務時間','休憩回数','休憩合計','ポモドーロ数'];
+    const dataRows = [header];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${y}/${m}/${String(d).padStart(2,'0')}`;
+      const dow = new Date(Number(y), Number(m)-1, d).getDay();
+      const r = byDate[dateStr];
+      dataRows.push(r && r.clockIn
+        ? [dateStr, DAYS[dow], r.clockIn||'', r.clockOut||'', r.workSec ? fmtSec(r.workSec):'', r.breaks||0, r.totalBreakSec ? fmtSec(r.totalBreakSec):'', r.pomodoros||0]
+        : [dateStr, DAYS[dow], '', '', '', '', '', '']);
+    }
+    const ws = XLSX.utils.aoa_to_sheet(dataRows);
+    ws['!cols'] = [{wch:13},{wch:5},{wch:9},{wch:9},{wch:10},{wch:8},{wch:9},{wch:12}];
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  });
+  XLSX.writeFile(wb, `勤怠記録.xlsx`);
+  notify('📥 ローカルxlsxをダウンロードしました', 'success');
+}
+
+function parseHMtoSec(str) {
+  if (!str) return 0;
+  const parts = String(str).split(':');
+  if (parts.length === 2) return Number(parts[0])*3600 + Number(parts[1])*60;
+  if (parts.length === 3) return Number(parts[0])*3600 + Number(parts[1])*60 + Number(parts[2]);
+  return 0;
+}
+
+function setSyncStatus(state, msg) {
+  const dot = document.getElementById('syncDot');
+  const txt = document.getElementById('syncStatus');
+  if (!dot || !txt) return;
+  dot.className = 'sync-dot ' + state;
+  txt.textContent = msg;
+}
+
+// alias used by init
+const updateExcelBanner = updateGsBanner;
+
+// ── Edit Modal ─────────────────────────────────────────────────────────────
+let editingDateStr = null;
+
+function openEditModal(dateStr) {
+  editingDateStr = dateStr;
+  const all = getRecords();
+  const [y, m] = dateStr.split('/');
+  const key = `${y}-${m}`;
+  const monthData = all[key] || [];
+  const rec = monthData.find(r => r.date === dateStr) || null;
+
+  const dateObj = new Date(dateStr.replace(/\//g,'-'));
+  const days = ['日','月','火','水','木','金','土'];
+  const dow = dateObj.getDay();
+  document.getElementById('modalDateLabel').textContent = `${dateStr}（${days[dow]}）`;
+
+  // Title: 新規追加 vs 編集
+  document.getElementById('modalTitle').textContent = rec ? '記録を編集' : '記録を新規追加';
+
+  const isOngoing = rec && rec.clockIn && !rec.clockOut;
+
+  // Warning note
+  const noteEl = document.getElementById('modalNote');
+  const noteTxt = document.getElementById('modalNoteText');
+  if (isOngoing) {
+    noteEl.style.display = 'flex';
+    noteTxt.textContent = '現在勤務中の記録です。退勤後に編集することを推奨します。';
+  } else if (rec && rec.manual) {
+    noteEl.style.display = 'flex';
+    noteTxt.textContent = `手動編集済み（${rec.manualAt ? new Date(rec.manualAt).toLocaleString('ja-JP', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '日時不明'}）`;
+  } else {
+    noteEl.style.display = 'none';
+  }
+
+  // Fill fields
+  document.getElementById('modalClockIn').value  = rec?.clockIn  || '';
+  document.getElementById('modalClockOut').value = rec?.clockOut || '';
+  document.getElementById('modalBreaks').value    = rec != null ? (rec.breaks ?? 0) : '';
+  document.getElementById('modalPomodoros').value = rec != null ? (rec.pomodoros ?? 0) : '';
+
+  // Show delete only if record exists
+  document.getElementById('modalDeleteBtn').style.display = rec ? '' : 'none';
+
+  document.getElementById('editModalOverlay').classList.add('open');
+}
+
+function closeEditModal(e) {
+  if (e && e.target !== document.getElementById('editModalOverlay')) return;
+  document.getElementById('editModalOverlay').classList.remove('open');
+  editingDateStr = null;
+}
+
+function saveEditRecord() {
+  if (!editingDateStr) return;
+
+  const clockIn  = document.getElementById('modalClockIn').value.trim();
+  const clockOut = document.getElementById('modalClockOut').value.trim();
+  const breaks   = parseInt(document.getElementById('modalBreaks').value) || 0;
+  const pomodoros= parseInt(document.getElementById('modalPomodoros').value) || 0;
+
+  if (!clockIn) { notify('⚠ 出勤時刻を入力してください'); return; }
+
+  // Calculate workSec from clockIn/clockOut
+  let workSec = 0;
+  if (clockIn && clockOut) {
+    const [ih, im] = clockIn.split(':').map(Number);
+    const [oh, om] = clockOut.split(':').map(Number);
+    workSec = (oh * 3600 + om * 60) - (ih * 3600 + im * 60);
+    if (workSec < 0) workSec += 86400; // overnight
+  }
+
+  const all = getRecords();
+  const [y, m] = editingDateStr.split('/');
+  const key = `${y}-${m}`;
+  if (!all[key]) all[key] = [];
+
+  const idx = all[key].findIndex(r => r.date === editingDateStr);
+  const existing = idx >= 0 ? all[key][idx] : {};
+
+  const updated = {
+    ...existing,
+    date: editingDateStr,
+    clockIn,
+    clockOut: clockOut || null,
+    workSec,
+    breaks,
+    pomodoros,
+    manual: true,              // ← flag as manually edited
+    manualAt: new Date().toISOString(),
+  };
+
+  if (idx >= 0) all[key][idx] = updated;
+  else all[key].push(updated);
+
+  // Sort by date
+  all[key].sort((a, b) => a.date.localeCompare(b.date));
+
+  localStorage.setItem(RECORDS_KEY, JSON.stringify(all));
+  scheduleWrite();
+
+  document.getElementById('editModalOverlay').classList.remove('open');
+  editingDateStr = null;
+  renderReport();
+  renderRecords();
+  notify('✏ 記録を保存しました', 'success');
+}
+
+function deleteEditRecord() {
+  if (!editingDateStr) return;
+  const all = getRecords();
+  const [y, m] = editingDateStr.split('/');
+  const key = `${y}-${m}`;
+  if (!all[key]) return;
+  all[key] = all[key].filter(r => r.date !== editingDateStr);
+  localStorage.setItem(RECORDS_KEY, JSON.stringify(all));
+  scheduleWrite();
+  document.getElementById('editModalOverlay').classList.remove('open');
+  editingDateStr = null;
+  renderReport();
+  renderRecords();
+  notify('🗑 記録を削除しました');
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+loadAutoPomodoroPref();
+updateHeader();
+setInterval(updateHeader, 1000);
+setMode('work');
+renderPomodoroCount();
+renderRecords();
+initToday();
+
+// ESC closes modal
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.getElementById('editModalOverlay').classList.remove('open');
+    editingDateStr = null;
+  }
+});
+
+// Break timer update
+setInterval(() => {
+  if (STATE.isOnBreak && STATE.breakStartTime) {
+    const elapsed = Math.floor((now() - STATE.breakStartTime) / 1000);
+    document.getElementById('totalBreakTime').textContent = fmtSec(STATE.totalBreakSeconds + elapsed);
+  }
+}, 1000);
+
+document.getElementById('recordMonth').textContent = monthKey(now()).replace('-','年') + '月';
+
+// Patch saveRecord globally to trigger Google Sheets sync
+const _saveRecordOriginal = saveRecord;
+window.saveRecord = function(record) {
+  _saveRecordOriginal(record);
+  scheduleWrite();
+};
+
+// Init Google Sheets banner state
+updateGsBanner();
+
+// Google APIのポーリング開始（file://対応）
+waitForApis();
+
+</script>
+</body>
+</html>
